@@ -11,6 +11,10 @@
  * @license MIT
  * @version 0.2.0
  *
+ * Revision by UrWrstNightmare (Jiho Park)
+ * 2020-03-20
+ * URL changes @ Added Functionality
+ *
  */
 
 const request = require('request')
@@ -18,12 +22,22 @@ const iconv = require('iconv-lite')
 
 const { appendZero } = require('./util/util')
 
+const originalData = "자료5109"
+
 class Timetable {
   constructor () {
-    this._baseUrl = 'http://comci.kr:4081'
-    this._url = 'http://comci.kr:4081/st'
+    this._baseUrl = 'http://comci.kr:4082'
+    this._url = 'http://comci.kr:4082/st'
     this._weekdayString = ['일', '월', '화', '수', '목', '금', '토']
     this._classTime = []
+    this._startDate = ""
+    this._schedulePeriod = []
+    this._semesterStartDate = ""
+    this._schoolYear = 2020
+    this._comciVer = ""
+    this._updateDate = ""
+    this._schedulePeriodThisWeek = 0
+    this._originalSchedule = {}
   }
 
   /**
@@ -122,6 +136,7 @@ class Timetable {
         this._searchData = searchData
         resolve()
       })
+
     })
 
     this._setSchool = true
@@ -163,6 +178,13 @@ class Timetable {
 
     // 교시별 시작/종료 시간 데이터
     this._classTime = resultJson['일과시간']
+    this._startDate = resultJson['시작일'] //이번 자료의 시작일 (월)
+    this._schedulePeriod = resultJson['일자자료'] //array, 자료들 기간
+    this._semesterStartDate = resultJson['학기시작일자'] //string, 학기 시작 일자
+    this._schoolYear = resultJson['학년도'] //number, 학년도
+    this._comciVer = resultJson['버젼'] //string, 컴시간 버젼
+
+
 
     let subjectProp = ''
     let teacherProp = ''
@@ -170,6 +192,7 @@ class Timetable {
 
     // JSON 데이터의 프로퍼티 조회
     for (let k of Object.keys(resultJson)) {
+      if(k.indexOf('자료')!==-1)
       if (typeof resultJson[k] === 'object' && k.indexOf('자료') !== -1) {
         if (k.indexOf('긴') !== -1) {
           subjectProp = k
@@ -209,12 +232,35 @@ class Timetable {
           }
         }
       }
+      else if (k.indexOf('자료')!==-1)
+      {
+        if(resultJson[k].substring(0,2) === "20") //연도이면
+        {
+          this._updateDate = resultJson[k]; //컴시간 자료 업데이트 날짜
+        }
+      }
+      else if (k.indexOf("오늘") !== -1)
+      {
+
+        this._schedulePeriodThisWeek = resultJson[k] //이번주의 일자자료 index
+      }
     }
 
     const classCount = resultJson['학급수']
     const teachers = resultJson[teacherProp]
     const subjects = resultJson[subjectProp]
     const data = resultJson[timedataProp]
+    /*
+    주의! 컴시간 object 구성에 따라 일일자료 (:4082까지는 자료2135)와 원자료
+    (:4082까지는 자료5109) 가 바뀔 수 있음
+    영구적인 해결을 위해서는 컴시간 html을 파싱해서 일일자료 = _______ (property 값)
+    원자료 = ___________ (property 값) 을 추가적인 파싱을 하여 구하는 것을 추천하나,
+    UTF-8이 깨지는 문제가 있음 (그리고 html이 바뀌면 문제가 생김)
+    */
+    let originalSche = ""
+    if(resultJson.hasOwnProperty(originalData))
+      originalSche = resultJson[originalData]
+    console.log("발견된 시간표 변수명: " + timedataProp +" --> 가장 최신의 변수명이 맞는지 확인해 주세요!")
     const time = resultJson['요일별시수']
 
     // 저장 데이터 리스트
@@ -273,6 +319,38 @@ class Timetable {
    */
   getClassTime () {
     return this._classTime
+  }
+
+  getStartDate() {
+    return this._startDate
+  }
+
+  getSchedulePeriod(){
+    return this._schedulePeriod
+  }
+
+  getSchedulePeriodThisWeek(){
+    for(let i = 0; i < this._schedulePeriod.length; i++){
+      if(this._schedulePeriodThisWeek == this._schedulePeriod[i][0]){
+        return this._schedulePeriod[i][1]
+      }
+    }
+  }
+
+  getSemesterStartDate(){
+    return this._semesterStartDate
+  }
+
+  getSchoolYear(){
+    return this._schoolYear
+  }
+
+  getComciVer(){
+    return this._comciVer
+  }
+
+  getUpdateDate(){
+    return this._updateDate
   }
 }
 
